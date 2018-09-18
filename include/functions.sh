@@ -266,7 +266,7 @@ analyse_template()
                 logging $TEMPLATE_ID "SSH login with user secant is not working." "ERROR"
                 break
             fi
-            CLOUD_INIT=$(ssh -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null" -o PreferredAuthentications=publickey secant@$IP cloud-init status)
+            CLOUD_INIT=$(ssh -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null" -o PreferredAuthentications=publickey secant@$IP grep -q '"errors": \[\]' /var/lib/cloud/data/result.json)
             if [ $? -ne 0 ]; then
                 logging $TEMPLATE_ID "Cloud-init missing on VM. Analyse running..." "INFO"
                 break
