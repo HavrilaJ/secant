@@ -47,6 +47,9 @@ done
 
 [ -z "$REPORT_DIR" ] && REPORT_DIR="$STATE_DIR/reports"
 
+[ "$TEST_RUN" = "yes" ] && REPORT_DIR="$(mktemp -d)"
+echo "[TEST_RUN] Reports: $REPORT_DIR"
+
 logging "SECANT" "Starting" "INFO"
 
 cloud_init
@@ -88,6 +91,13 @@ for TEMPLATE_ID in "${TEMPLATES_FOR_ANALYSIS[@]}"; do
             logging "$TEMPLATE_ID" "Failed to query //CLOUDKEEPER_APPLIANCE_ATTRIBUTES on template." "ERROR"
             continue
         fi
+        MESSAGE_ID=$(cloud_template_query "$TEMPLATE_ID" "//MESSAGEID")
+        IS_MESSAGE_ID=$?
+        if [ $IS_MESSAGE_ID -ne 0 ]; then
+            logging "$TEMPLATE_ID" "Couldn't query MESSAGE ID from template, supposing it doesn't originate from AppDB." "INFO"
+        fi
+        [ "$TEST_RUN" = "yes" ] && [ $IS_MESSAGE_ID -eq 0 ] && continue
+        [ "$TEST_RUN" = "no" ] && [ $IS_MESSAGE_ID -ne 0 ] && continue
         (
             FOLDER_PATH=$REPORT_DIR/$TEMPLATE_IDENTIFIER
             if [[ -d $FOLDER_PATH ]] ; then
@@ -106,12 +116,6 @@ for TEMPLATE_ID in "${TEMPLATES_FOR_ANALYSIS[@]}"; do
                 exit 1
             fi
 
-            MESSAGE_ID=$(cloud_template_query "$TEMPLATE_ID" "//MESSAGEID")
-            ret=$?
-            if [ $ret -ne 0 ]; then
-                logging "$TEMPLATE_ID" "Couldn't query MESSAGE ID from template, supposing it doesn't originate from AppDB." "INFO"
-            fi
-
             logging $TEMPLATE_IDENTIFIER "Analysis completed successfully (BASE_MPURI = $BASE_MPURI, MESSAGE_ID: $MESSAGE_ID), check ${FOLDER_PATH}/analysis_output.{stdout,stderr} for artifacts." "INFO"
 
             sed '/^$/d' $FOLDER_TO_SAVE_REPORTS/report > $FOLDER_TO_SAVE_REPORTS/report.xml
@@ -124,9 +128,7 @@ for TEMPLATE_ID in "${TEMPLATES_FOR_ANALYSIS[@]}"; do
             fi
 
             if [ "$TEST_RUN" = "no" ]; then
-                if [ $ret -eq 0 ]; then
-                    ${SECANT_PATH}/tools/argo_produce.py --mode push --niftyID $TEMPLATE_IDENTIFIER --messageID $MESSAGE_ID --path $FOLDER_PATH/assessment_result.xml --base_mpuri $BASE_MPURI
-                fi
+                ${SECANT_PATH}/tools/argo_produce.py --mode push --niftyID $TEMPLATE_IDENTIFIER --messageID $MESSAGE_ID --path $FOLDER_PATH/assessment_result.xml --base_mpuri $BASE_MPURI
             fi
             [ "$DELETE_TEMPLATES" = "yes" ] && delete_template_and_images $TEMPLATE_ID
         ) &
